@@ -4,21 +4,25 @@ import (
 	"fmt"
 	"bytes"
 	"encoding/binary"
+	"regexp"
+	"path"
 	"github.com/pkg/errors"
 
 	bolt "github.com/etcd-io/bbolt"
 )
 
 type (
-	// server wraps a boltdb so it provides a versioned API
+	// Server wraps a boltdb so it provides a versioned API
 	Server struct {
 		db *bolt.DB
 	}
+
 )
 
 var (
 	itemsBucket = []byte("items")
 	counterBucket = []byte("counters")
+	safeUrlRegex = regexp.MustCompile("^[a-zA-Z0-9\\-\\./]+$")
 )
 
 func noError(err error) {
@@ -71,6 +75,7 @@ func (s *Server) Put(entry string, value []byte) (uint64, error) {
 	var version uint64
 	err := s.db.Update(func(tx *bolt.Tx) error {
 		return dontPanic(func() {
+			entry = toSafePath(entry)
 			count := incCounter(tx.Bucket(counterBucket), entry)
 			putCounter(tx.Bucket(counterBucket), entry, count)
 			putItem(tx.Bucket(itemsBucket), entry, count, value)
@@ -88,6 +93,7 @@ func (s *Server) Get(entry string, version uint64) ([]byte, uint64, error) {
 	var val []byte
 	err := s.db.View(func(tx *bolt.Tx)error {
 		return dontPanic(func(){
+			entry = toSafePath(entry)
 			if version == 0 {
 				version = getCounter(tx.Bucket(counterBucket), entry)
 			}
@@ -106,6 +112,7 @@ func (s *Server) Versions(entry string) ([]uint64, error) {
 	var versions []uint64
 	err := dontPanic(func() {
 		s.db.View(func(tx *bolt.Tx) error {
+			entry = toSafePath(entry)
 			cursor := tx.Bucket(itemsBucket).Cursor()
 			prefix := toDbKeyPrefix(entry)
 			for key, _ := cursor.Seek(prefix); hasPrefix(key, prefix); key, _ = cursor.Next() {
@@ -195,4 +202,17 @@ func toDbKeyPrefix(entry string) []byte {
 
 func hasPrefix(value, prefix []byte) bool {
 	return bytes.HasPrefix(value, prefix)
+}
+
+func toSafePath(value string) string {
+	if !safeUrlRegex.MatchString(value) {
+		panic(fmt.Errorf("value %s is not safe", value))
+	}
+	if value != path.Clean(value) {
+		panic(fmt.Errorf("value %s is not safe", value))
+	}
+	if value[0] == '/' {
+		value = value[1:]
+	}
+	return value
 }

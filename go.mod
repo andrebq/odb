@@ -1,4 +1,4 @@
-module github.com/andrebq/aleodb
+module github.com/andrebq/odb
 
 go 1.12
 

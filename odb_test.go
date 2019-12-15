@@ -9,6 +9,10 @@ func TestPutGet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = s.TruncateAll()
+	if err != nil {
+		t.Fatal(err)
+	}
 	type hello struct {
 		Msg string
 	}

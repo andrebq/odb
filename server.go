@@ -46,6 +46,12 @@ func (s *Server) Collection(username, db, col string) (*Col, error) {
 	return dbref.createCollection(col)
 }
 
+// TruncateAll all the users and their collections and any other related data
+func (s *Server) TruncateAll() error {
+	_, err := s.conn.Exec("truncate fda_users.users cascade;")
+	return err
+}
+
 func Connect(host, user, pwd string) (*Server, error) {
 	var port = "5432"
 	if idx := strings.Index(host, ":"); idx >= 0 {
